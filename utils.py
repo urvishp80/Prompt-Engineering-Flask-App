@@ -55,9 +55,6 @@ def get_answer_from_openai_embedding_dict(user_input, context_embedding, datafra
         return str("Please call us for more information.")
 
 
-
-
-
 # GPT-Index Model
 gpt_index_json = "data/greystar_gpt_index.json"
 gpt_index_vector_index = GPTSimpleVectorIndex.load_from_disk(gpt_index_json)
@@ -104,5 +101,54 @@ def get_answer_from_faiss(user_input, dataframe):
     #     response = row.completion
     #     if idx == 1:  # we will show only first row only
     #         break
-    return str(result)
+    return str(result).strip()
+
+
+def get_answer_with_combined_approach(user_input):
+    chosen_sections = []
+
+    # embedding api
+    embedding_api_response = get_answer_from_openai_embedding_dict(
+        user_input=user_input,
+        context_embedding=openai_embedding_greystar,
+        dataframe=df_content
+    )
+    embedding_api_response = str(embedding_api_response).strip()
+    chosen_sections.append(embedding_api_response)
+
+    # gpt-index
+    gpt_index_response = gpt_index_vector_index.query(
+        user_input=user_input,
+        response_mode="compact"
+    )
+    gpt_index_response = str(gpt_index_response.response).strip()
+    chosen_sections.append(gpt_index_response)
+
+    # faiss
+    faiss_response = get_answer_from_faiss(
+        user_input=user_input,
+        dataframe=df_content
+    )
+    faiss_response = str(faiss_response).strip()
+    chosen_sections.append(faiss_response)
+
+    # openai completion
+    header = """Answer the question using the provided context and be as truthful as possible, and if you are unsure, say "Please rephrase the question."\n\nContext:\n"""
+    final_prompt = header + "".join(list(set(chosen_sections))) + "\n\n Q: " + user_input + "?" + "\n A:"
+
+    final_response = openai.Completion.create(
+        model=COMPLETIONS_MODEL,
+        prompt=final_prompt,
+        max_tokens=1000,
+        temperature=0,
+        stop=[" END"],
+    )
+
+    final_response = final_response["choices"][0]["text"].replace("\n", "").strip()
+    return final_response
+
+
+
+
+
 

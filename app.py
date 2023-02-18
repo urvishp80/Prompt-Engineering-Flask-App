@@ -64,7 +64,16 @@ def faiss_completion():
         user_input=prompt,
         dataframe=utils.df_content
     )
-    return str(response).strip()
+    return str(response)
+
+
+@app.route("/combined-model", methods=["POST"])
+def combined_completion():
+    data = request.json
+    prompt = data['prompt'] + "?"
+
+    response = utils.get_answer_with_combined_approach(user_input=prompt)
+    return str(response)
 
 
 if __name__ == '__main__':

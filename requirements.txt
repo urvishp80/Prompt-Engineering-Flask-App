@@ -1,0 +1,13 @@
+Flask
+openai
+gpt-index
+langchain
+tiktoken
+openpyxl
+python-dotenv
+tqdm
+pandas
+transformers
+datasets
+faiss-cpu
+numpy

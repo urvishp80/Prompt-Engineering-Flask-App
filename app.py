@@ -1,0 +1,71 @@
+import utils as utils
+
+import os
+
+import openai
+from dotenv import load_dotenv
+from flask import Flask, request
+
+load_dotenv()
+
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def hello_world():
+    return "<p>Hello, World!</p>"
+
+
+@app.route("/finetuned-gpt3-model", methods=["POST"])
+def finetuned_gpt3_completion():
+    data = request.json
+    prompt = data['prompt'] + "?"
+    response = openai.Completion.create(
+        model=utils.COMPLETIONS_MODEL,
+        prompt=prompt,
+        max_tokens=1500,
+        temperature=0,
+        stop=[" END"],
+    )
+    response_str = response["choices"][0]["text"].replace("\n", "").strip()
+    return response_str
+
+
+@app.route("/openai-embedding-api", methods=["POST"])
+def embedding_api_completion():
+    data = request.json
+    prompt = data['prompt'] + "?"
+
+    response = utils.get_answer_from_openai_embedding_dict(
+        user_input=prompt,
+        context_embedding=utils.openai_embedding_greystar,
+        dataframe=utils.df_content
+    )
+    return str(response).strip()
+
+
+@app.route("/gpt-index-model", methods=["POST"])
+def gpt_index_completion():
+    data = request.json
+    prompt = data['prompt'] + "?"
+
+    response = utils.gpt_index_vector_index.query(prompt, response_mode="compact")
+    return str(response).strip()
+
+
+@app.route("/faiss-model", methods=["POST"])
+def faiss_completion():
+    data = request.json
+    prompt = data['prompt'] + "?"
+
+    response = utils.get_answer_from_faiss(
+        user_input=prompt,
+        dataframe=utils.df_content
+    )
+    return str(response).strip()
+
+
+if __name__ == '__main__':
+    app.run(debug=True)

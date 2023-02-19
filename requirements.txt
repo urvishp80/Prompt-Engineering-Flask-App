@@ -11,3 +11,4 @@ transformers
 datasets
 faiss-cpu
 numpy
+torch

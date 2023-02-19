@@ -118,7 +118,7 @@ def get_answer_with_combined_approach(user_input):
 
     # gpt-index
     gpt_index_response = gpt_index_vector_index.query(
-        user_input=user_input,
+        user_input,
         response_mode="compact"
     )
     gpt_index_response = str(gpt_index_response.response).strip()

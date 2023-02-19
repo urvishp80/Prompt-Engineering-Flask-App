@@ -1,14 +1,21 @@
+import shutil
+import re
 import numpy as np
 import openai
 import pandas as pd
 import json
 import os
+import time
 from gpt_index import SimpleDirectoryReader, GPTListIndex, readers, GPTSimpleVectorIndex, LLMPredictor, PromptHelper
+from langchain import OpenAI
 from datasets import Dataset
 from transformers import AutoTokenizer, AutoModel
 import torch
+import traceback
 import faiss
+from tqdm import tqdm
 from dotenv import load_dotenv
+
 load_dotenv()
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -22,9 +29,9 @@ df_content = pd.read_csv("data/final_with_content_finetune_data.csv")
 openai_embedding_greystar = json.load(open("data/doc_embeddings_greystar.json"))
 
 
-def get_openai_embedding(text: str, model=openai_embedding_model):
+def get_openai_embedding(text: str, model_name=openai_embedding_model):
     result = openai.Embedding.create(
-        model=model,
+        model=model_name,
         input=text
     )
     return result["data"][0]["embedding"]
@@ -34,13 +41,55 @@ def vector_similarity(x, y):
     return np.dot(np.array(x), np.array(y))
 
 
+def normalize_text(s, sep_token=" \n "):
+    s = re.sub(r'\s+', ' ', s).strip()
+    s = re.sub(r". ,", "", s)
+    # remove all instances of multiple spaces
+    s = s.replace("..", ".")
+    s = s.replace(". .", ".")
+    s = s.replace("\n", "")
+    s = s.replace("#", "")
+    s = s.strip()
+    return s
+
+
 def order_document_sections_by_query_similarity(query, contexts):
     query_embedding = get_openai_embedding(query)
+
     # vectory similarity between user input and embedding_dict
     document_similarities = sorted([
         (vector_similarity(query_embedding, doc_embedding), doc_index) for doc_index, doc_embedding in contexts.items()
     ], reverse=True)
     return document_similarities
+
+
+def compute_document_embedding(csv_file, output_dir):
+    dataframe = pd.read_csv(csv_file)
+    dataframe['prompt'] = dataframe["prompt"].apply(lambda x: normalize_text(x))
+    dataframe['completion'] = dataframe["completion"].apply(lambda x: normalize_text(x))
+    dataframe['content'] = "Question: " + dataframe['prompt'] + " " + "Answer: " + dataframe['completion']
+
+    doc_emb = {}
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    embedding_file_path = f"{output_dir}/doc_embeddings_greystar.json"
+
+    for idx, r in tqdm(dataframe.iterrows(), total=dataframe.shape[0]):
+        try:
+            doc_emb[idx] = get_openai_embedding(str(r.content))
+        except:
+            json.dump(doc_emb, open(embedding_file_path, 'w'))
+            print(f"\nERROR REPORTED AT IDX: {idx}\n{traceback.format_exc()}\n")
+            print("waiting for 120 s...")
+            time.sleep(120)
+            print(f"\nRESUMING FROM IDX: {idx}")
+            doc_emb[idx] = get_openai_embedding(str(r.content))
+
+    json.dump(doc_emb, open(embedding_file_path, 'w'))
+    print(f"Document Embeddings file saved!\nSave path: {embedding_file_path}")
+    return doc_emb
 
 
 def get_answer_from_openai_embedding_dict(user_input, context_embedding, dataframe):
@@ -56,9 +105,46 @@ def get_answer_from_openai_embedding_dict(user_input, context_embedding, datafra
 
 
 # GPT-Index Model
+def construct_gpt_index(csv_file, output_dir):
+    input_dir = 'gpt_index_data'
+    shutil.rmtree(input_dir)
+    if not os.path.exists(input_dir):
+        os.makedirs(input_dir, exist_ok=True)
+
+    dataframe = pd.read_csv(csv_file)
+    dataframe['prompt'] = dataframe["prompt"].apply(lambda x: normalize_text(x))
+    dataframe['completion'] = dataframe["completion"].apply(lambda x: normalize_text(x))
+    dataframe['content'] = "Question: " + dataframe['prompt'] + " " + "Answer: " + dataframe['completion']
+
+    df_gpt_index = dataframe['content']
+    df_gpt_index.to_csv(f'{input_dir}/final_content.txt', header=None, index=None,
+                        sep=' ', mode='a')
+
+    max_input_size = 4096  # set maximum input size
+    num_outputs = 256  # set number of output tokens
+    max_chunk_overlap = 20  # set maximum chunk overlap
+    chunk_size_limit = 600  # set chunk size limit
+
+    # define LLM
+    llm_predictor = LLMPredictor(llm=OpenAI(temperature=0, model_name="text-ada-001", max_tokens=num_outputs))
+    prompt_helper = PromptHelper(max_input_size, num_outputs, max_chunk_overlap, chunk_size_limit=chunk_size_limit)
+
+    documents = SimpleDirectoryReader(input_dir).load_data()
+    index = GPTSimpleVectorIndex(
+        documents, llm_predictor=llm_predictor, prompt_helper=prompt_helper,
+    )  # verbose=True
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    gpt_index_file_path = f'{output_dir}/greystar_gpt_index.json'
+    index.save_to_disk(gpt_index_file_path)
+    print(f"GPT Index Embeddings file saved!\nSave path: {gpt_index_file_path}")
+    return index, gpt_index_file_path
+
+
 gpt_index_json = "data/greystar_gpt_index.json"
 gpt_index_vector_index = GPTSimpleVectorIndex.load_from_disk(gpt_index_json)
-
 
 # FAISS Model
 model_ckpt = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
@@ -76,9 +162,22 @@ def get_faiss_embeddings(text_list):
     encoded_input = tokenizer(
         text_list, padding=True, truncation=True, return_tensors="pt"
     )
-    encoded_input = {k: v for k, v in encoded_input.items()} # v.to(device)
+    encoded_input = {k: v for k, v in encoded_input.items()}  # v.to(device)
     model_output = model(**encoded_input)
     return cls_pooling(model_output)
+
+
+def construct_faiss_vector(csv_file, output_dir):
+    dataframe = pd.read_csv(csv_file)
+    dataset_ = Dataset.from_pandas(dataframe)
+    faiss_dataset = dataset_.map(
+        lambda x: {"embeddings": get_faiss_embeddings(x["content"]).detach().cpu().numpy()[0]}
+    )
+    faiss_embedding_vectors = np.array(faiss_dataset['embeddings']).astype('float32')
+    faiss_vector_file_path = f"{output_dir}/greystar_faiss_vectors.npy"
+    np.save(faiss_vector_file_path, faiss_embedding_vectors)
+    print(f"FAISS Embeddings file saved!\nSave path: {faiss_vector_file_path}")
+    return faiss_vector_file_path
 
 
 # load vector file
@@ -147,9 +246,3 @@ def get_answer_with_combined_approach(user_input):
 
     final_response = final_response["choices"][0]["text"].replace("\n", "").strip()
     return final_response
-
-
-
-
-
-

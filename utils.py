@@ -85,6 +85,7 @@ def get_faiss_embeddings(text_list):
 faiss_vector_path = "data/greystar_faiss_vectors.npy"
 faiss_vectors = np.load(faiss_vector_path)  # load
 faiss_index_flat = faiss.IndexFlatL2(faiss_vectors.shape[1])  # build a flat (CPU) index
+faiss_index_flat.add(faiss_vectors)  # add vectors to the index
 
 
 def get_answer_from_faiss(user_input, dataframe):
@@ -96,9 +97,9 @@ def get_answer_from_faiss(user_input, dataframe):
     idx = samples_df.iloc[0].index_num
     result = dataframe.iloc[int(idx)].completion
     # for _, r in samples_df.iterrows():
-    #     idx = int(r['samples'])
-    #     row = df.iloc[idx]
-    #     response = row.completion
+    #     idx = int(r['index_num'])
+    #     row = dataframe.iloc[idx]
+    #     result = row.completion
     #     if idx == 1:  # we will show only first row only
     #         break
     return str(result).strip()

@@ -39,7 +39,7 @@ def generate_openai_embedding_file():
         csv_file=utils.df_content,
         output_dir='data'
     )
-    response_str = f"OpenAI embeddings file saved!\nSave path: {embedding_file_path}"
+    response_str = f"OpenAI embeddings file saved!\nSave path: {str(embedding_file_path)}"
     return response_str
 
 
@@ -62,7 +62,7 @@ def gpt_index_vector_file():
         csv_file=utils.df_content,
         output_dir='data'
     )
-    response_str = f"GPT Index embeddings file saved!\nSave path: {gpt_index_file_path}"
+    response_str = f"GPT Index embeddings file saved!\nSave path: {str(gpt_index_file_path)}"
     return response_str
 
 
@@ -81,7 +81,7 @@ def faiss_vector_file():
         csv_file=utils.df_content,
         output_dir='data'
     )
-    response_str = f"FAISS embeddings file saved!\nSave path: {faiss_vector_file_path}"
+    response_str = f"FAISS embeddings file saved!\nSave path: {str(faiss_vector_file_path)}"
     return response_str
 
 

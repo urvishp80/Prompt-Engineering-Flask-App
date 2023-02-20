@@ -1,3 +1,5 @@
+import pandas as pd
+
 import utils as utils
 
 import os
@@ -33,10 +35,14 @@ def finetuned_gpt3_completion():
     return response_str
 
 
-@app.route("/create-embedding-file", methods=["GET"])
+@app.route("/create-embedding-file", methods=["POST"])
 def generate_openai_embedding_file():
+    data = request.json
+    csv_path = data['csv_file']
+    df = pd.read_csv(csv_path)
+
     embedding_file_path = utils.compute_document_embedding(
-        csv_file=utils.df_content,
+        csv_file=df,
         output_dir='data'
     )
     response_str = f"OpenAI embeddings file saved!\nSave path: {str(embedding_file_path)}"
@@ -56,10 +62,14 @@ def embedding_api_completion():
     return str(response).strip()
 
 
-@app.route("/create-gpt-index-file", methods=["GET"])
+@app.route("/create-gpt-index-file", methods=["POST"])
 def gpt_index_vector_file():
+    data = request.json
+    csv_path = data['csv_file']
+    df = pd.read_csv(csv_path)
+
     _, gpt_index_file_path = utils.construct_gpt_index(
-        csv_file=utils.df_content,
+        csv_file=df,
         output_dir='data'
     )
     response_str = f"GPT Index embeddings file saved!\nSave path: {str(gpt_index_file_path)}"
@@ -75,10 +85,14 @@ def gpt_index_completion():
     return str(response).strip()
 
 
-@app.route("/create-faiss-file", methods=["GET"])
+@app.route("/create-faiss-file", methods=["POST"])
 def faiss_vector_file():
+    data = request.json
+    csv_path = data['csv_file']
+    df = pd.read_csv(csv_path)
+
     faiss_vector_file_path = utils.construct_faiss_vector(
-        csv_file=utils.df_content,
+        csv_file=df,
         output_dir='data'
     )
     response_str = f"FAISS embeddings file saved!\nSave path: {str(faiss_vector_file_path)}"

@@ -33,7 +33,7 @@ def finetuned_gpt3_completion():
     return response_str
 
 
-@app.route("/create-embedding-file", methods=["POST"])
+@app.route("/create-embedding-file", methods=["GET"])
 def generate_openai_embedding_file():
     embedding_file_path = utils.compute_document_embedding(
         csv_file=utils.df_content,
@@ -56,7 +56,7 @@ def embedding_api_completion():
     return str(response).strip()
 
 
-@app.route("/create-gpt-index-file", methods=["POST"])
+@app.route("/create-gpt-index-file", methods=["GET"])
 def gpt_index_vector_file():
     _, gpt_index_file_path = utils.construct_gpt_index(
         csv_file=utils.df_content,
@@ -75,7 +75,7 @@ def gpt_index_completion():
     return str(response).strip()
 
 
-@app.route("/create-faiss-file", methods=["POST"])
+@app.route("/create-faiss-file", methods=["GET"])
 def faiss_vector_file():
     faiss_vector_file_path = utils.construct_faiss_vector(
         csv_file=utils.df_content,

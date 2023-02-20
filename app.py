@@ -1,5 +1,3 @@
-import pandas as pd
-
 import utils as utils
 
 import os
@@ -37,16 +35,17 @@ def finetuned_gpt3_completion():
 
 @app.route("/create-embedding-file", methods=["POST"])
 def generate_openai_embedding_file():
-    data = request.json
-    csv_path = data['csv_file']
-    df = pd.read_csv(csv_path)
+    if request.files:
+        uploaded_file = request.files['csv_file']
 
-    embedding_file_path = utils.compute_document_embedding(
-        csv_file=df,
-        output_dir='data'
-    )
-    response_str = f"OpenAI embeddings file saved!\nSave path: {str(embedding_file_path)}"
-    return response_str
+        embedding_file_path = utils.compute_document_embedding(
+            csv_file=uploaded_file,
+            output_dir='data'
+        )
+        response_str = f"OpenAI embeddings file saved!\nSave path: {str(embedding_file_path)}"
+        return response_str
+    else:
+        return f"Please upload a csv file!"
 
 
 @app.route("/openai-embedding-api", methods=["POST"])
@@ -64,16 +63,17 @@ def embedding_api_completion():
 
 @app.route("/create-gpt-index-file", methods=["POST"])
 def gpt_index_vector_file():
-    data = request.json
-    csv_path = data['csv_file']
-    df = pd.read_csv(csv_path)
+    if request.files:
+        uploaded_file = request.files['csv_file']
 
-    _, gpt_index_file_path = utils.construct_gpt_index(
-        csv_file=df,
-        output_dir='data'
-    )
-    response_str = f"GPT Index embeddings file saved!\nSave path: {str(gpt_index_file_path)}"
-    return response_str
+        _, gpt_index_file_path = utils.construct_gpt_index(
+            csv_file=uploaded_file,
+            output_dir='data'
+        )
+        response_str = f"GPT Index embeddings file saved!\nSave path: {str(gpt_index_file_path)}"
+        return response_str
+    else:
+        return f"Please upload a csv file!"
 
 
 @app.route("/gpt-index-model", methods=["POST"])
@@ -87,16 +87,17 @@ def gpt_index_completion():
 
 @app.route("/create-faiss-file", methods=["POST"])
 def faiss_vector_file():
-    data = request.json
-    csv_path = data['csv_file']
-    df = pd.read_csv(csv_path)
+    if request.files:
+        uploaded_file = request.files['csv_file']
 
-    faiss_vector_file_path = utils.construct_faiss_vector(
-        csv_file=df,
-        output_dir='data'
-    )
-    response_str = f"FAISS embeddings file saved!\nSave path: {str(faiss_vector_file_path)}"
-    return response_str
+        faiss_vector_file_path = utils.construct_faiss_vector(
+            csv_file=uploaded_file,
+            output_dir='data'
+        )
+        response_str = f"FAISS embeddings file saved!\nSave path: {str(faiss_vector_file_path)}"
+        return response_str
+    else:
+        return f"Please upload a csv file!"
 
 
 @app.route("/faiss-model", methods=["POST"])

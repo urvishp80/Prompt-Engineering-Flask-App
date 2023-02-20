@@ -89,7 +89,7 @@ def compute_document_embedding(csv_file, output_dir):
 
     json.dump(doc_emb, open(embedding_file_path, 'w'))
     print(f"Document Embeddings file saved!\nSave path: {embedding_file_path}")
-    return doc_emb
+    return embedding_file_path
 
 
 def get_answer_from_openai_embedding_dict(user_input, context_embedding, dataframe):

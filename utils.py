@@ -64,6 +64,7 @@ def order_document_sections_by_query_similarity(query, contexts):
 
 
 def compute_document_embedding(csv_file, output_dir):
+
     dataframe = pd.read_csv(csv_file)
     dataframe['prompt'] = dataframe["prompt"].apply(lambda x: normalize_text(x))
     dataframe['completion'] = dataframe["completion"].apply(lambda x: normalize_text(x))
@@ -94,12 +95,31 @@ def compute_document_embedding(csv_file, output_dir):
 
 def get_answer_from_openai_embedding_dict(user_input, context_embedding, dataframe):
     try:
-        most_relevant_document_sections = order_document_sections_by_query_similarity(user_input, context_embedding)[:2]
-        for i in most_relevant_document_sections:
-            document_section = dataframe.iloc[int(i[1])]
+        k = 3
+        most_relevant_document_sections = order_document_sections_by_query_similarity(user_input, context_embedding)[:k]
+        chosen_sections = []
+        for n, row in enumerate(most_relevant_document_sections):
+            document_section = dataframe.iloc[int(row[1])]
             if isinstance(document_section, pd.DataFrame):
                 document_section = document_section.iloc[0]
-            return str(document_section['completion'])
+
+            completion_str = str(document_section['completion'])
+            chosen_sections.append(completion_str)
+
+        # openai completion
+        header = """Answer the question using the provided context and be as truthful as possible, and if you are unsure, say "Please rephrase the question."\n\nContext:\n"""
+        final_prompt = header + "".join(list(set(chosen_sections))) + "\n\n Q: " + user_input + "?" + "\n A:"
+
+        final_response = openai.Completion.create(
+            model=COMPLETIONS_MODEL,
+            prompt=final_prompt,
+            max_tokens=1000,
+            temperature=0,
+            stop=[" END"],
+        )
+
+        final_response = final_response["choices"][0]["text"].replace("\n", "").strip()
+        return final_response
     except:
         return str("Please call us for more information.")
 
@@ -172,7 +192,12 @@ def get_faiss_embeddings(text_list):
 
 
 def construct_faiss_vector(csv_file, output_dir):
+
     dataframe = pd.read_csv(csv_file)
+    dataframe['prompt'] = dataframe["prompt"].apply(lambda x: normalize_text(x))
+    dataframe['completion'] = dataframe["completion"].apply(lambda x: normalize_text(x))
+    dataframe['content'] = "Question: " + dataframe['prompt'] + " " + "Answer: " + dataframe['completion']
+
     dataset_ = Dataset.from_pandas(dataframe)
     faiss_dataset = dataset_.map(
         lambda x: {"embeddings": get_faiss_embeddings(x["content"]).detach().cpu().numpy()[0]}
@@ -193,19 +218,37 @@ faiss_index_flat.add(faiss_vectors)  # add vectors to the index
 
 def get_answer_from_faiss(user_input, dataframe):
     user_embedding = get_faiss_embeddings([user_input]).cpu().detach().numpy()
-    k = 2  # we want to see 2 nearest neighbors
+
+    k = 3  # we want to see 3 nearest neighbors
     scores, index_num = faiss_index_flat.search(user_embedding, k)
+
     samples_df = pd.DataFrame({"index_num": index_num.flatten(), "scores": scores.flatten()})
     samples_df.sort_values("scores", ascending=False, inplace=True)
-    idx = samples_df.iloc[0].index_num
-    result = dataframe.iloc[int(idx)].completion
-    # for _, r in samples_df.iterrows():
-    #     idx = int(r['index_num'])
-    #     row = dataframe.iloc[idx]
-    #     result = row.completion
-    #     if idx == 1:  # we will show only first row only
-    #         break
-    return str(result).strip()
+
+    # idx = samples_df.iloc[0].index_num
+    # result = dataframe.iloc[int(idx)].completion
+
+    chosen_sections = []
+    for _, r in samples_df.iterrows():
+        idx = int(r['index_num'])
+        row = dataframe.iloc[idx]
+        completion_str = str(row.completion)
+        chosen_sections.append(completion_str)
+
+    # openai completion
+    header = """Answer the question using the provided context and be as truthful as possible, and if you are unsure, say "Please rephrase the question."\n\nContext:\n"""
+    final_prompt = header + "".join(list(set(chosen_sections))) + "\n\n Q: " + user_input + "?" + "\n A:"
+
+    final_response = openai.Completion.create(
+        model=COMPLETIONS_MODEL,
+        prompt=final_prompt,
+        max_tokens=1000,
+        temperature=0,
+        stop=[" END"],
+    )
+
+    final_response = final_response["choices"][0]["text"].replace("\n", "").strip()
+    return final_response
 
 
 def get_answer_with_combined_approach(user_input):

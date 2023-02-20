@@ -107,7 +107,11 @@ def get_answer_from_openai_embedding_dict(user_input, context_embedding, datafra
 # GPT-Index Model
 def construct_gpt_index(csv_file, output_dir):
     input_dir = 'gpt_index_data'
-    shutil.rmtree(input_dir)
+    try:
+        shutil.rmtree(input_dir)
+    except:
+        pass
+
     if not os.path.exists(input_dir):
         os.makedirs(input_dir, exist_ok=True)
 
